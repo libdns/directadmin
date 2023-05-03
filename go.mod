@@ -1,4 +1,4 @@
-module directadmin
+module github.com/libdns/directadmin
 
 go 1.18
 
