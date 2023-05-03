@@ -140,7 +140,6 @@ func TestProvider_AppendRecords(t *testing.T) {
 	for _, tt := range tests {
 		testName := fmt.Sprintf("%v records", 0)
 		t.Run(testName, func(t *testing.T) {
-			// Append Records
 			_, err := provider.AppendRecords(ctx, zone, tt.records)
 
 			if tt.expectSuccess && err != nil {
@@ -208,7 +207,6 @@ func TestProvider_SetRecords(t *testing.T) {
 	for _, tt := range tests {
 		testName := fmt.Sprintf("%v records", 0)
 		t.Run(testName, func(t *testing.T) {
-			// Append Records
 			_, err := provider.SetRecords(ctx, zone, tt.records)
 
 			if tt.expectSuccess && err != nil {
@@ -281,7 +279,6 @@ func TestProvider_DeleteRecords(t *testing.T) {
 	for _, tt := range tests {
 		testName := fmt.Sprintf("%v records", 0)
 		t.Run(testName, func(t *testing.T) {
-			// Append Records
 			_, err := provider.DeleteRecords(ctx, zone, tt.records)
 
 			if tt.expectSuccess && err != nil {
