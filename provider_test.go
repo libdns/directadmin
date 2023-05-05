@@ -135,6 +135,68 @@ func TestProvider_AppendRecords(t *testing.T) {
 			},
 			expectSuccess: true,
 		},
+		{
+			records: []libdns.Record{
+				{
+					Type:  "TXT",
+					Name:  "_acme-challenge.libdns.test",
+					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
+					TTL:   300 * time.Second,
+				},
+			},
+			expectSuccess: true,
+		},
+	}
+
+	for _, tt := range tests {
+		testName := fmt.Sprintf("%v records", 0)
+		t.Run(testName, func(t *testing.T) {
+			_, err := provider.AppendRecords(ctx, zone, tt.records)
+
+			if tt.expectSuccess && err != nil {
+				t.Error(err)
+			}
+
+			if !tt.expectSuccess && err == nil {
+				t.Error("expected an error, didn't see one")
+			}
+		})
+	}
+}
+
+func TestProvider_DotZoneAppendRecords(t *testing.T) {
+	ctx := context.TODO()
+
+	// Configure the DNS provider
+	provider, zone := initProvider()
+	zone = zone + "."
+
+	var tests = []struct {
+		records       []libdns.Record
+		expectSuccess bool
+	}{
+		{
+			records: []libdns.Record{
+				{
+					Type:  "A",
+					Name:  "libdnsTest",
+					Value: "1.1.1.1",
+					TTL:   300 * time.Second,
+				},
+			},
+			expectSuccess: true,
+		},
+		{
+			records: []libdns.Record{
+				{
+					Type:  "TXT",
+					Name:  "_acme-challenge.libdns.test",
+					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
+					TTL:   300 * time.Second,
+				},
+			},
+			expectSuccess: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -197,6 +259,17 @@ func TestProvider_SetRecords(t *testing.T) {
 					Type:  "AAAA",
 					Name:  "libdnsTest2",
 					Value: "2001:4860:4860::8888",
+					TTL:   300 * time.Second,
+				},
+			},
+			expectSuccess: true,
+		},
+		{
+			records: []libdns.Record{
+				{
+					Type:  "TXT",
+					Name:  "_acme-challenge.libdns.test",
+					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
 					TTL:   300 * time.Second,
 				},
 			},
@@ -269,6 +342,17 @@ func TestProvider_DeleteRecords(t *testing.T) {
 					Type:  "AAAA",
 					Name:  "libdnsTest2",
 					Value: "2001:4860:4860::8888",
+					TTL:   300 * time.Second,
+				},
+			},
+			expectSuccess: true,
+		},
+		{
+			records: []libdns.Record{
+				{
+					Type:  "TXT",
+					Name:  "_acme-challenge.libdns.test",
+					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
 					TTL:   300 * time.Second,
 				},
 			},

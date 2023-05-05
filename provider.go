@@ -4,6 +4,7 @@ package directadmin
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/libdns/libdns"
@@ -45,6 +46,8 @@ type Provider struct {
 
 // GetRecords lists all the records in the zone.
 func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
+	zone = strings.TrimRight(zone, ".")
+
 	records, err := p.getZoneRecords(ctx, zone)
 	if err != nil {
 		return nil, err
@@ -55,6 +58,8 @@ func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record
 
 // AppendRecords adds records to the zone. It returns the records that were added.
 func (p *Provider) AppendRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
+	zone = strings.TrimRight(zone, ".")
+
 	var created []libdns.Record
 	for _, rec := range records {
 		result, err := p.appendZoneRecord(ctx, zone, rec)
@@ -70,6 +75,8 @@ func (p *Provider) AppendRecords(ctx context.Context, zone string, records []lib
 // SetRecords sets the records in the zone, either by updating existing records or creating new ones.
 // It returns the updated records.
 func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
+	zone = strings.TrimRight(zone, ".")
+
 	var updated []libdns.Record
 	for _, rec := range records {
 		result, err := p.setZoneRecord(ctx, zone, rec)
@@ -84,6 +91,8 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 
 // DeleteRecords deletes the records from the zone. It returns the records that were deleted.
 func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
+	zone = strings.TrimRight(zone, ".")
+
 	var deleted []libdns.Record
 	for _, rec := range records {
 		result, err := p.deleteZoneRecord(ctx, zone, rec)
