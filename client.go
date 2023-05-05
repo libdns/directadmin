@@ -2,6 +2,7 @@ package directadmin
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"github.com/libdns/libdns"
@@ -42,7 +43,14 @@ func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Re
 
 	req.SetBasicAuth(p.User, p.LoginKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: p.InsecureRequests,
+			},
+		}}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("[%s] failed to execute request: %v\n", p.caller(callerSkipDepth), err)
 		return nil, err
@@ -217,7 +225,14 @@ func (p *Provider) executeRequest(ctx context.Context, method, url string) error
 
 	req.SetBasicAuth(p.User, p.LoginKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: p.InsecureRequests,
+			},
+		}}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Printf("[%s] failed to execute request: %v\n", p.caller(callerSkipDepth), err)
 		return err
