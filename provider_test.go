@@ -6,6 +6,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/libdns/libdns"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -19,13 +20,27 @@ func initProvider() (*Provider, string) {
 
 	zone := envOrFail("LIBDNS_DA_TEST_ZONE")
 
+	insecureRequest, err := strconv.ParseBool(defaultEnv("LIBDNS_DA_TEST_INSECURE_REQUESTS", "false"))
+	if err != nil {
+		insecureRequest = false
+	}
+
 	provider := &Provider{
 		ServerURL:        envOrFail("LIBDNS_DA_TEST_SERVER_URL"),
 		User:             envOrFail("LIBDNS_DA_TEST_USER"),
 		LoginKey:         envOrFail("LIBDNS_DA_TEST_LOGIN_KEY"),
-		InsecureRequests: true,
+		InsecureRequests: insecureRequest,
 	}
 	return provider, zone
+}
+
+func defaultEnv(key, fallback string) string {
+	val := os.Getenv(key)
+	if len(val) == 0 {
+		return fallback
+	}
+
+	return val
 }
 
 func envOrFail(key string) string {
@@ -46,6 +61,31 @@ func TestProvider_GetRecords(t *testing.T) {
 
 	// Configure the DNS provider
 	provider, zone := initProvider()
+
+	// list records
+	records, err := provider.GetRecords(ctx, zone)
+
+	if len(records) == 0 {
+		t.Errorf("expected >0 records")
+	}
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Hack to work around "unsupported record conversion of type SRV: _xmpp._tcp"
+	// output not generating a new line. This breaks GoLands test results output
+	// https://stackoverflow.com/a/68607772/95790
+	fmt.Println()
+}
+
+func TestProvider_InsecureGetRecords(t *testing.T) {
+	ctx := context.TODO()
+
+	// Configure the DNS provider
+	provider, zone := initProvider()
+	provider.ServerURL = envOrFail("LIBDNS_DA_TEST_INSECURE_SERVER_URL")
+	provider.InsecureRequests = true
 
 	// list records
 	records, err := provider.GetRecords(ctx, zone)
@@ -169,7 +209,9 @@ func TestProvider_DotZoneAppendRecords(t *testing.T) {
 
 	// Configure the DNS provider
 	provider, zone := initProvider()
-	zone = zone + "."
+	if zone[len(zone)-1:] != "." {
+		zone = zone + "."
+	}
 
 	var tests = []struct {
 		records       []libdns.Record
