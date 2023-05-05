@@ -9,16 +9,17 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strconv"
 	"strings"
 )
 
 func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	callerSkipDepth := 2
 
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
+		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(callerSkipDepth), err)
 		return nil, err
 	}
 
@@ -35,6 +36,7 @@ func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Re
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
+		fmt.Printf("[%s] failed to build new request: %v\n", p.caller(callerSkipDepth), err)
 		return nil, err
 	}
 
@@ -42,22 +44,25 @@ func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Re
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		fmt.Printf("[%s] failed to execute request: %v\n", p.caller(callerSkipDepth), err)
 		return nil, err
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close body: %v", err)
+			fmt.Printf("[%s] failed to close body: %v\n", p.caller(callerSkipDepth), err)
 		}
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("[%s] api response error, status code: %v\n", p.caller(callerSkipDepth), resp.StatusCode)
 		return nil, err
 	}
 
 	var respData daZone
 	err = json.NewDecoder(resp.Body).Decode(&respData)
 	if err != nil {
+		fmt.Printf("[%s] failed to json decode response: %v\n", p.caller(callerSkipDepth), err)
 		return nil, err
 	}
 
@@ -67,7 +72,7 @@ func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Re
 		if err != nil {
 			switch err {
 			case ErrUnsupported:
-				fmt.Printf("unsupported record conversion of type %v: %v", libDnsRecord.Type, libDnsRecord.Name)
+				fmt.Printf("[%s] unsupported record conversion of type %v: %v\n", p.caller(callerSkipDepth), libDnsRecord.Type, libDnsRecord.Name)
 				continue
 			default:
 				return nil, err
@@ -85,6 +90,7 @@ func (p *Provider) appendZoneRecord(ctx context.Context, zone string, record lib
 
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
+		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
 		return libdns.Record{}, err
 	}
 
@@ -106,43 +112,8 @@ func (p *Provider) appendZoneRecord(ctx context.Context, zone string, record lib
 
 	reqURL.RawQuery = queryString.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	err = p.executeRequest(ctx, http.MethodGet, reqURL.String())
 	if err != nil {
-		return libdns.Record{}, err
-	}
-
-	req.SetBasicAuth(p.User, p.LoginKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return libdns.Record{}, err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Printf("failed to close body: %v", err)
-		}
-	}(resp.Body)
-
-	var respData daResponse
-	err = json.NewDecoder(resp.Body).Decode(&respData)
-	if err != nil {
-		return libdns.Record{}, err
-	}
-
-	if len(respData.Error) > 0 {
-		return libdns.Record{}, fmt.Errorf("%v: %v", respData.Error, respData.Result)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Printf("failed to read response body: %v", err)
-			return libdns.Record{}, err
-		}
-		bodyString := string(bodyBytes)
-		log.Println(bodyString)
-
 		return libdns.Record{}, err
 	}
 
@@ -157,6 +128,7 @@ func (p *Provider) setZoneRecord(ctx context.Context, zone string, record libdns
 
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
+		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
 		return libdns.Record{}, err
 	}
 
@@ -193,43 +165,8 @@ func (p *Provider) setZoneRecord(ctx context.Context, zone string, record libdns
 
 	reqURL.RawQuery = queryString.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	err = p.executeRequest(ctx, http.MethodGet, reqURL.String())
 	if err != nil {
-		return libdns.Record{}, err
-	}
-
-	req.SetBasicAuth(p.User, p.LoginKey)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return libdns.Record{}, err
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Printf("failed to close body: %v", err)
-		}
-	}(resp.Body)
-
-	var respData daResponse
-	err = json.NewDecoder(resp.Body).Decode(&respData)
-	if err != nil {
-		return libdns.Record{}, err
-	}
-
-	if len(respData.Error) > 0 {
-		return libdns.Record{}, fmt.Errorf("%v: %v", respData.Error, respData.Result)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Printf("failed to read response body: %v", err)
-			return libdns.Record{}, err
-		}
-		bodyString := string(bodyBytes)
-		log.Println(bodyString)
-
 		return libdns.Record{}, err
 	}
 
@@ -244,6 +181,7 @@ func (p *Provider) deleteZoneRecord(ctx context.Context, zone string, record lib
 
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
+		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
 		return libdns.Record{}, err
 	}
 
@@ -260,45 +198,69 @@ func (p *Provider) deleteZoneRecord(ctx context.Context, zone string, record lib
 
 	reqURL.RawQuery = queryString.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	err = p.executeRequest(ctx, http.MethodGet, reqURL.String())
 	if err != nil {
 		return libdns.Record{}, err
+	}
+
+	return record, nil
+}
+
+func (p *Provider) executeRequest(ctx context.Context, method, url string) error {
+	callerSkipDepth := 3
+
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	if err != nil {
+		fmt.Printf("[%s] failed to build new request: %v\n", p.caller(callerSkipDepth), err)
+		return err
 	}
 
 	req.SetBasicAuth(p.User, p.LoginKey)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return libdns.Record{}, err
+		fmt.Printf("[%s] failed to execute request: %v\n", p.caller(callerSkipDepth), err)
+		return err
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("failed to close body: %v", err)
+			fmt.Printf("[%s] failed to close body: %v\n", p.caller(callerSkipDepth), err)
 		}
 	}(resp.Body)
 
 	var respData daResponse
 	err = json.NewDecoder(resp.Body).Decode(&respData)
 	if err != nil {
-		return libdns.Record{}, err
+		fmt.Printf("[%s] failed to json decode response: %v\n", p.caller(callerSkipDepth), err)
+		return err
 	}
 
 	if len(respData.Error) > 0 {
-		return libdns.Record{}, fmt.Errorf("%v: %v", respData.Error, respData.Result)
+		trimmedResult := strings.Split(respData.Result, "\n")[0]
+		fmt.Printf("[%s] api response error: %v: %v\n", p.caller(callerSkipDepth), respData.Error, trimmedResult)
+		return fmt.Errorf("[%s] api response error: %v: %v\n", p.caller(callerSkipDepth), respData.Error, trimmedResult)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Printf("failed to read response body: %v", err)
-			return libdns.Record{}, err
+			fmt.Printf("[%s] failed to read response body: %v\n", p.caller(callerSkipDepth), err)
+			return err
 		}
 		bodyString := string(bodyBytes)
 		log.Println(bodyString)
 
-		return libdns.Record{}, err
+		return err
 	}
 
-	return record, nil
+	return nil
+}
+
+func (p *Provider) caller(skip int) string {
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(skip, pc)
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	return frame.Function
 }
