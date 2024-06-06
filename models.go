@@ -50,12 +50,12 @@ func (r daRecord) libdnsRecord(zone string) (libdns.Record, error) {
 	case "MX":
 		splits := strings.Split(r.Value, " ")
 
-		uint(priority), err := strconv.Atoi(splits[0])
+		priority, err := strconv.Atoi(splits[0])
 		if err != nil {
 			return record, fmt.Errorf("failed to parse MX priority for %v: %v", r.Name, err)
 		}
 
-		record.Priority = priority
+		record.Priority = uint(priority)
 		record.Value = fmt.Sprintf("%v.%v", splits[1], zone)
 	case "SRV":
 		return record, ErrUnsupported
