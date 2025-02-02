@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func initProvider() (*Provider, string) {
+func initProvider(nonRoot bool) (*Provider, string) {
 	err := godotenv.Load()
 	if err != nil {
 		fmt.Println("Error loading .env file")
@@ -19,6 +19,10 @@ func initProvider() (*Provider, string) {
 	}
 
 	zone := envOrFail("LIBDNS_DA_TEST_ZONE")
+
+	if nonRoot {
+		zone = envOrFail("LIBDNS_DA_NON_ROOT_TEST_ZONE")
+	}
 
 	insecureRequest, err := strconv.ParseBool(defaultEnv("LIBDNS_DA_TEST_INSECURE_REQUESTS", "false"))
 	if err != nil {
@@ -46,8 +50,8 @@ func defaultEnv(key, fallback string) string {
 func envOrFail(key string) string {
 	val := os.Getenv(key)
 	if len(val) == 0 {
-		fmt.Printf("Please notice that this test runs against a production direct admin DNS API\n"+
-			"you sould never run the test with an in use, production zone.\n\n"+
+		fmt.Printf("Please note that these tests must run against a real direct admin DNS API\n"+
+			"you should never run these tests against an in use, production zone.\n\n"+
 			"To run these tests, you need to copy .env.example to .env and modify the values for your environment.\n\n"+
 			"%v is required", key)
 		os.Exit(1)
@@ -60,7 +64,7 @@ func TestProvider_GetRecords(t *testing.T) {
 	ctx := context.TODO()
 
 	// Configure the DNS provider
-	provider, zone := initProvider()
+	provider, zone := initProvider(false)
 
 	// list records
 	records, err := provider.GetRecords(ctx, zone)
@@ -83,7 +87,7 @@ func TestProvider_InsecureGetRecords(t *testing.T) {
 	ctx := context.TODO()
 
 	// Configure the DNS provider
-	provider, zone := initProvider()
+	provider, zone := initProvider(false)
 	provider.ServerURL = envOrFail("LIBDNS_DA_TEST_INSECURE_SERVER_URL")
 	provider.InsecureRequests = true
 
@@ -108,7 +112,7 @@ func TestProvider_AppendRecords(t *testing.T) {
 	ctx := context.TODO()
 
 	// Configure the DNS provider
-	provider, zone := initProvider()
+	provider, zone := initProvider(false)
 
 	var tests = []struct {
 		records       []libdns.Record
@@ -208,7 +212,7 @@ func TestProvider_DotZoneAppendRecords(t *testing.T) {
 	ctx := context.TODO()
 
 	// Configure the DNS provider
-	provider, zone := initProvider()
+	provider, zone := initProvider(false)
 	if zone[len(zone)-1:] != "." {
 		zone = zone + "."
 	}
@@ -257,11 +261,53 @@ func TestProvider_DotZoneAppendRecords(t *testing.T) {
 	}
 }
 
+func TestProvider_NonRootAppendRecords(t *testing.T) {
+	ctx := context.TODO()
+
+	// Configure the DNS provider
+	provider, zone := initProvider(true)
+	if zone[len(zone)-1:] != "." {
+		zone = zone + "."
+	}
+
+	var tests = []struct {
+		records       []libdns.Record
+		expectSuccess bool
+	}{
+		{
+			records: []libdns.Record{
+				{
+					Type:  "TXT",
+					Name:  "_acme-challenge.libdns",
+					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
+					TTL:   0,
+				},
+			},
+			expectSuccess: true,
+		},
+	}
+
+	for _, tt := range tests {
+		testName := fmt.Sprintf("%v records", 0)
+		t.Run(testName, func(t *testing.T) {
+			_, err := provider.AppendRecords(ctx, zone, tt.records)
+
+			if tt.expectSuccess && err != nil {
+				t.Error(err)
+			}
+
+			if !tt.expectSuccess && err == nil {
+				t.Error("expected an error, didn't see one")
+			}
+		})
+	}
+}
+
 func TestProvider_SetRecords(t *testing.T) {
 	ctx := context.TODO()
 
 	// Configure the DNS provider
-	provider, zone := initProvider()
+	provider, zone := initProvider(false)
 
 	var tests = []struct {
 		records       []libdns.Record
@@ -344,7 +390,7 @@ func TestProvider_DeleteRecords(t *testing.T) {
 	ctx := context.TODO()
 
 	// Configure the DNS provider
-	provider, zone := initProvider()
+	provider, zone := initProvider(false)
 
 	var tests = []struct {
 		records       []libdns.Record
