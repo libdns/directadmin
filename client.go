@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/libdns/libdns"
 	"io"
 	"log"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/libdns/libdns"
 )
 
 func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
@@ -80,7 +81,8 @@ func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Re
 		if err != nil {
 			switch err {
 			case ErrUnsupported:
-				fmt.Printf("[%s] unsupported record conversion of type %v: %v\n", p.caller(callerSkipDepth), libDnsRecord.Type, libDnsRecord.Name)
+				rr := libDnsRecord.RR()
+				fmt.Printf("[%s] unsupported record conversion of type %v: %v\n", p.caller(callerSkipDepth), rr.Type, rr.Name)
 				continue
 			default:
 				return nil, err
@@ -99,7 +101,7 @@ func (p *Provider) appendZoneRecord(ctx context.Context, zone string, record lib
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
 		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
-		return libdns.Record{}, err
+		return nil, err
 	}
 
 	reqURL.Path = "/CMD_API_DNS_CONTROL"
@@ -110,24 +112,25 @@ func (p *Provider) appendZoneRecord(ctx context.Context, zone string, record lib
 	queryString.Set("full_mx_records", "yes")
 	queryString.Set("allow_dns_underscore", "yes")
 	queryString.Set("domain", zone)
-	queryString.Set("type", record.Type)
-	queryString.Set("name", record.Name)
-	queryString.Set("value", record.Value)
 
-	if record.Type != "NS" {
-		queryString.Set("ttl", strconv.Itoa(int(record.TTL.Seconds())))
+	rr := record.RR()
+	queryString.Set("type", rr.Type)
+	queryString.Set("name", rr.Name)
+	queryString.Set("value", rr.Data)
+
+	if rr.Type != "NS" {
+		queryString.Set("ttl", strconv.Itoa(int(rr.TTL.Seconds())))
 	}
 
 	reqURL.RawQuery = queryString.Encode()
 
 	err = p.executeRequest(ctx, http.MethodGet, reqURL.String())
 	if err != nil {
-		return libdns.Record{}, err
+		return nil, err
 	}
 
-	record.ID = fmt.Sprintf("name=%v&value=%v", record.Name, record.Value)
-
-	return record, nil
+	rr.Data = fmt.Sprintf("name=%v&value=%v", rr.Name, rr.Data)
+	return &rr, nil
 }
 
 func (p *Provider) setZoneRecord(ctx context.Context, zone string, record libdns.Record) (libdns.Record, error) {
@@ -137,7 +140,7 @@ func (p *Provider) setZoneRecord(ctx context.Context, zone string, record libdns
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
 		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
-		return libdns.Record{}, err
+		return nil, err
 	}
 
 	reqURL.Path = "/CMD_API_DNS_CONTROL"
@@ -146,18 +149,21 @@ func (p *Provider) setZoneRecord(ctx context.Context, zone string, record libdns
 	queryString.Set("action", "edit")
 	queryString.Set("json", "yes")
 	queryString.Set("domain", zone)
-	queryString.Set("type", record.Type)
-	queryString.Set("name", record.Name)
-	queryString.Set("value", record.Value)
 
-	if record.Type != "NS" {
-		queryString.Set("ttl", strconv.Itoa(int(record.TTL.Seconds())))
+	rr := record.RR()
+	queryString.Set("type", rr.Type)
+	queryString.Set("name", rr.Name)
+	queryString.Set("value", rr.Data)
+
+	if rr.Type != "NS" {
+		queryString.Set("ttl", strconv.Itoa(int(rr.TTL.Seconds())))
 	}
 
 	existingRecords, _ := p.getZoneRecords(ctx, zone)
 	var existingRecordIndex = -1
 	for i := range existingRecords {
-		if existingRecords[i].Name == record.Name && existingRecords[i].Type == record.Type {
+		existingRR := existingRecords[i].RR()
+		if existingRR.Name == rr.Name && existingRR.Type == rr.Type {
 			existingRecordIndex = i
 			break
 		}
@@ -166,8 +172,8 @@ func (p *Provider) setZoneRecord(ctx context.Context, zone string, record libdns
 	// If we're not -1, we found a matching existing record. This changes the API call
 	// from create only to edit.
 	if existingRecordIndex != -1 {
-		editKey := fmt.Sprintf("%vrecs0", strings.ToLower(record.Type))
-		editValue := existingRecords[existingRecordIndex].ID
+		editKey := fmt.Sprintf("%vrecs0", strings.ToLower(rr.Type))
+		editValue := existingRecords[existingRecordIndex].RR().Data
 		queryString.Set(editKey, editValue)
 	}
 
@@ -175,12 +181,11 @@ func (p *Provider) setZoneRecord(ctx context.Context, zone string, record libdns
 
 	err = p.executeRequest(ctx, http.MethodGet, reqURL.String())
 	if err != nil {
-		return libdns.Record{}, err
+		return nil, err
 	}
 
-	record.ID = fmt.Sprintf("name=%v&value=%v", record.Name, record.Value)
-
-	return record, nil
+	rr.Data = fmt.Sprintf("name=%v&value=%v", rr.Name, rr.Data)
+	return &rr, nil
 }
 
 func (p *Provider) deleteZoneRecord(ctx context.Context, zone string, record libdns.Record) (libdns.Record, error) {
@@ -190,7 +195,7 @@ func (p *Provider) deleteZoneRecord(ctx context.Context, zone string, record lib
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
 		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
-		return libdns.Record{}, err
+		return nil, err
 	}
 
 	reqURL.Path = "/CMD_API_DNS_CONTROL"
@@ -200,15 +205,16 @@ func (p *Provider) deleteZoneRecord(ctx context.Context, zone string, record lib
 	queryString.Set("json", "yes")
 	queryString.Set("domain", zone)
 
-	editKey := fmt.Sprintf("%vrecs0", strings.ToLower(record.Type))
-	editValue := fmt.Sprintf("name=%v&value=%v", record.Name, record.Value)
+	rr := record.RR()
+	editKey := fmt.Sprintf("%vrecs0", strings.ToLower(rr.Type))
+	editValue := fmt.Sprintf("name=%v&value=%v", rr.Name, rr.Data)
 	queryString.Set(editKey, editValue)
 
 	reqURL.RawQuery = queryString.Encode()
 
 	err = p.executeRequest(ctx, http.MethodGet, reqURL.String())
 	if err != nil {
-		return libdns.Record{}, err
+		return nil, err
 	}
 
 	return record, nil

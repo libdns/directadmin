@@ -3,12 +3,14 @@ package directadmin
 import (
 	"context"
 	"fmt"
-	"github.com/joho/godotenv"
-	"github.com/libdns/libdns"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/joho/godotenv"
+	"github.com/libdns/libdns"
 )
 
 func initProvider() (*Provider, string) {
@@ -116,72 +118,72 @@ func TestProvider_AppendRecords(t *testing.T) {
 	}{
 		{
 			records: []libdns.Record{
-				{
-					Type:  "A",
-					Name:  "libdnsTest",
-					Value: "1.1.1.1",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "A",
+					Name: "libdnsTest",
+					Data: "1.1.1.1",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "A",
-					Name:  "libdnsTest",
-					Value: "libdnsTest",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "A",
+					Name: "libdnsTest",
+					Data: "libdnsTest",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: false,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "AAAA",
-					Name:  "libdnsTest",
-					Value: "2606:4700:4700::1111",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "AAAA",
+					Name: "libdnsTest",
+					Data: "2606:4700:4700::1111",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "AAAA",
-					Name:  "libdnsTest2",
-					Value: "test2",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "AAAA",
+					Name: "libdnsTest2",
+					Data: "test2",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: false,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "A",
-					Name:  "libdnsTest2",
-					Value: "1.1.1.1",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "A",
+					Name: "libdnsTest2",
+					Data: "1.1.1.1",
+					TTL:  300 * time.Second,
 				},
-				{
-					Type:  "AAAA",
-					Name:  "libdnsTest2",
-					Value: "2606:4700:4700::1111",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "AAAA",
+					Name: "libdnsTest2",
+					Data: "2606:4700:4700::1111",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "TXT",
-					Name:  "_acme-challenge.libdns.test",
-					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "TXT",
+					Name: "_acme-challenge.libdns.test",
+					Data: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
@@ -219,22 +221,22 @@ func TestProvider_DotZoneAppendRecords(t *testing.T) {
 	}{
 		{
 			records: []libdns.Record{
-				{
-					Type:  "A",
-					Name:  "libdnsTest",
-					Value: "1.1.1.1",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "A",
+					Name: "libdnsTest",
+					Data: "1.1.1.1",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "TXT",
-					Name:  "_acme-challenge.libdns.test",
-					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "TXT",
+					Name: "_acme-challenge.libdns.test",
+					Data: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
@@ -269,50 +271,50 @@ func TestProvider_SetRecords(t *testing.T) {
 	}{
 		{
 			records: []libdns.Record{
-				{
-					Type:  "A",
-					Name:  "libdnsTest",
-					Value: "8.8.8.8",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "A",
+					Name: "libdnsTest",
+					Data: "8.8.8.8",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "AAAA",
-					Name:  "libdnsTest",
-					Value: "2001:4860:4860::8888",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "AAAA",
+					Name: "libdnsTest",
+					Data: "2001:4860:4860::8888",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "A",
-					Name:  "libdnsTest2",
-					Value: "8.8.8.8",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "A",
+					Name: "libdnsTest2",
+					Data: "8.8.8.8",
+					TTL:  300 * time.Second,
 				},
-				{
-					Type:  "AAAA",
-					Name:  "libdnsTest2",
-					Value: "2001:4860:4860::8888",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "AAAA",
+					Name: "libdnsTest2",
+					Data: "2001:4860:4860::8888",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "TXT",
-					Name:  "_acme-challenge.libdns.test",
-					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "TXT",
+					Name: "_acme-challenge.libdns.test",
+					Data: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
@@ -352,50 +354,50 @@ func TestProvider_DeleteRecords(t *testing.T) {
 	}{
 		{
 			records: []libdns.Record{
-				{
-					Type:  "A",
-					Name:  "libdnsTest",
-					Value: "8.8.8.8",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "A",
+					Name: "libdnsTest",
+					Data: "8.8.8.8",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "AAAA",
-					Name:  "libdnsTest",
-					Value: "2001:4860:4860::8888",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "AAAA",
+					Name: "libdnsTest",
+					Data: "2001:4860:4860::8888",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "A",
-					Name:  "libdnsTest2",
-					Value: "8.8.8.8",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "A",
+					Name: "libdnsTest2",
+					Data: "8.8.8.8",
+					TTL:  300 * time.Second,
 				},
-				{
-					Type:  "AAAA",
-					Name:  "libdnsTest2",
-					Value: "2001:4860:4860::8888",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "AAAA",
+					Name: "libdnsTest2",
+					Data: "2001:4860:4860::8888",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
 		},
 		{
 			records: []libdns.Record{
-				{
-					Type:  "TXT",
-					Name:  "_acme-challenge.libdns.test",
-					Value: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
-					TTL:   300 * time.Second,
+				&libdns.RR{
+					Type: "TXT",
+					Name: "_acme-challenge.libdns.test",
+					Data: "bI8-MNaHRF2FYODzDV2QIWDJrtN94tHqUjHFU_m1tIY",
+					TTL:  300 * time.Second,
 				},
 			},
 			expectSuccess: true,
@@ -415,5 +417,36 @@ func TestProvider_DeleteRecords(t *testing.T) {
 				t.Error("expected an error, didn't see one")
 			}
 		})
+	}
+}
+
+func TestProvider_SetRecords_Atomicity(t *testing.T) {
+	ctx := context.TODO()
+	provider, zone := initProvider()
+
+	// Test case where all records fail (should return AtomicErr)
+	invalidRecords := []libdns.Record{
+		&libdns.RR{
+			Type: "A",
+			Name: "invalid",
+			TTL:  300 * time.Second,
+			Data: "invalid-ip",
+		},
+	}
+
+	_, err := provider.SetRecords(ctx, zone, invalidRecords)
+	if err == nil {
+		t.Error("expected an error for invalid records, got nil")
+	}
+
+	// Check if it's an AtomicErr (all records failed)
+	// Note: We can't directly compare with libdns.AtomicErr since it's a type
+	// But we can check the error message or type
+	if err != nil {
+		// The error should indicate that all records failed
+		errStr := err.Error()
+		if !strings.Contains(errStr, "all records failed") && !strings.Contains(errStr, "AtomicErr") {
+			t.Errorf("expected AtomicErr or 'all records failed' message, got: %v", err)
+		}
 	}
 }
