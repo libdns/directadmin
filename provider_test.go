@@ -456,6 +456,12 @@ func TestProvider_SetRecords_Atomicity(t *testing.T) {
 			TTL:  300 * time.Second,
 			Data: "invalid-ip",
 		},
+		&libdns.RR{
+			Type: "AAAA",
+			Name: "invalid",
+			TTL:  300 * time.Second,
+			Data: "invalid-ip",
+		},
 	}
 
 	_, err := provider.SetRecords(ctx, zone, invalidRecords)
