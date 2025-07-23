@@ -4,6 +4,7 @@ package directadmin
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -78,12 +79,24 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 	zone = strings.TrimSuffix(zone, ".")
 
 	var updated []libdns.Record
+	var errors []error
+
 	for _, rec := range records {
 		result, err := p.setZoneRecord(ctx, zone, rec)
 		if err != nil {
-			return nil, err
+			errors = append(errors, err)
+			continue
 		}
 		updated = append(updated, result)
+	}
+
+	if len(errors) > 0 {
+		if len(updated) == 0 {
+			// No records were updated, return AtomicErr
+			return nil, libdns.AtomicErr(fmt.Errorf("all records failed to update: %v", errors))
+		}
+		// Some records were updated, return a combined error
+		return updated, fmt.Errorf("partial update failed: %v", errors)
 	}
 
 	return updated, nil
