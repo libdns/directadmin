@@ -29,23 +29,17 @@ type Provider struct {
 	//
 	// The key will need two permissions:
 	//
-	// `CMD_API_SHOW_DOMAINS`
+	// `CMD_API_SHOW_DOMAINS` - Required for automatic zone detection
 	//
-	// `CMD_API_DNS_CONTROL`
+	// `CMD_API_DNS_CONTROL` - Required for DNS record management
 	//
-	// Unless you are only using `GetRecords()`, in which case `CMD_API_DNS_CONTROL`
-	// can be omitted
+	// Both permissions are required for all operations as the provider
+	// uses automatic zone detection to handle subdomains correctly
 	LoginKey string `json:"login_key,omitempty"`
 
 	// InsecureRequests is an optional parameter used to ignore SSL related errors on the
 	// DirectAdmin host
 	InsecureRequests bool `json:"insecure_requests,omitempty"`
-
-	// Debug - can set this to stdout or stderr to dump
-	// debugging information about the API interaction with
-	// powerdns.  This will dump your auth token in plain text
-	// so be careful.
-	Debug string `json:"debug,omitempty"`
 }
 
 // getLogger returns the logger with caller location context, creating a default one if none is set
