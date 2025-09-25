@@ -64,9 +64,15 @@ func (p *Provider) caller() string {
 
 // GetRecords lists all the records in the zone.
 func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
-	zone = strings.TrimSuffix(zone, ".")
+	p.getLogger().Debug("GetRecords called",
+		zap.String("zone", zone))
 
-	records, err := p.getZoneRecords(ctx, zone)
+	managedZone, err := p.findManageableZone(ctx, zone)
+	if err != nil {
+		return nil, err
+	}
+
+	records, err := p.getZoneRecords(ctx, managedZone)
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +82,36 @@ func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record
 
 // AppendRecords adds records to the zone. It returns the records that were added.
 func (p *Provider) AppendRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
-	zone = strings.TrimSuffix(zone, ".")
+	p.getLogger().Debug("AppendRecords called",
+		zap.String("zone", zone),
+		zap.Int("record_count", len(records)))
+
+	managedZone, err := p.findManageableZone(ctx, zone)
+	if err != nil {
+		return nil, err
+	}
+
+	if zone != managedZone {
+		p.getLogger().Debug("Using managed zone",
+			zap.String("managed_zone", managedZone),
+			zap.String("requested_zone", zone))
+	}
 
 	var created []libdns.Record
 	for _, rec := range records {
-		result, err := p.appendZoneRecord(ctx, zone, rec)
+		// Adjust record name if managedZone differs from requested zone
+		adjustedRecord := rec
+		if managedZone != strings.TrimSuffix(zone, ".") {
+			adjustedRecord = p.adjustRecordForZone(rec, zone, managedZone)
+		}
+
+		adjustedRR := adjustedRecord.RR()
+		p.getLogger().Debug("Creating record",
+			zap.String("name", adjustedRR.Name),
+			zap.String("type", adjustedRR.Type),
+			zap.String("value", adjustedRR.Data))
+
+		result, err := p.appendZoneRecord(ctx, managedZone, adjustedRecord)
 		if err != nil {
 			return nil, err
 		}
@@ -93,13 +124,38 @@ func (p *Provider) AppendRecords(ctx context.Context, zone string, records []lib
 // SetRecords sets the records in the zone, either by updating existing records or creating new ones.
 // It returns the updated records.
 func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
-	zone = strings.TrimSuffix(zone, ".")
+	p.getLogger().Debug("SetRecords called",
+		zap.String("zone", zone),
+		zap.Int("record_count", len(records)))
+
+	managedZone, err := p.findManageableZone(ctx, zone)
+	if err != nil {
+		return nil, err
+	}
+
+	if zone != managedZone {
+		p.getLogger().Debug("Using managed zone",
+			zap.String("managed_zone", managedZone),
+			zap.String("requested_zone", zone))
+	}
 
 	var updated []libdns.Record
 	var errors []error
 
 	for _, rec := range records {
-		result, err := p.setZoneRecord(ctx, zone, rec)
+		// Adjust record name if managedZone differs from requested zone
+		adjustedRecord := rec
+		if managedZone != strings.TrimSuffix(zone, ".") {
+			adjustedRecord = p.adjustRecordForZone(rec, zone, managedZone)
+		}
+
+		adjustedRR := adjustedRecord.RR()
+		p.getLogger().Debug("Creating record",
+			zap.String("name", adjustedRR.Name),
+			zap.String("type", adjustedRR.Type),
+			zap.String("value", adjustedRR.Data))
+
+		result, err := p.setZoneRecord(ctx, managedZone, adjustedRecord)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -121,11 +177,36 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 
 // DeleteRecords deletes the records from the zone. It returns the records that were deleted.
 func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []libdns.Record) ([]libdns.Record, error) {
-	zone = strings.TrimSuffix(zone, ".")
+	p.getLogger().Debug("DeleteRecords called",
+		zap.String("zone", zone),
+		zap.Int("record_count", len(records)))
+
+	managedZone, err := p.findManageableZone(ctx, zone)
+	if err != nil {
+		return nil, err
+	}
+
+	if zone != managedZone {
+		p.getLogger().Debug("Using managed zone",
+			zap.String("managed_zone", managedZone),
+			zap.String("requested_zone", zone))
+	}
 
 	var deleted []libdns.Record
 	for _, rec := range records {
-		result, err := p.deleteZoneRecord(ctx, zone, rec)
+		// Adjust record name if managedZone differs from requested zone
+		adjustedRecord := rec
+		if managedZone != strings.TrimSuffix(zone, ".") {
+			adjustedRecord = p.adjustRecordForZone(rec, zone, managedZone)
+		}
+
+		adjustedRR := adjustedRecord.RR()
+		p.getLogger().Debug("Deleting record",
+			zap.String("name", adjustedRR.Name),
+			zap.String("type", adjustedRR.Type),
+			zap.String("value", adjustedRR.Data))
+
+		result, err := p.deleteZoneRecord(ctx, managedZone, adjustedRecord)
 		if err != nil {
 			return nil, err
 		}
@@ -133,6 +214,57 @@ func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []lib
 	}
 
 	return deleted, nil
+}
+
+// adjustRecordForZone adjusts the record name when the managed zone differs from the requested zone
+func (p *Provider) adjustRecordForZone(record libdns.Record, requestedZone, managedZone string) libdns.Record {
+	requestedZone = strings.TrimSuffix(requestedZone, ".")
+	managedZone = strings.TrimSuffix(managedZone, ".")
+
+	// Calculate the subdomain portion that was stripped during zone detection
+	// Example: requestedZone="test.domain.com", managedZone="domain.com" -> subdomain="test"
+	if !strings.HasSuffix(requestedZone, managedZone) {
+		return record // Safety check - shouldn't happen with proper zone detection
+	}
+
+	var subdomain string
+	if requestedZone == managedZone {
+		subdomain = ""
+	} else {
+		subdomain = strings.TrimSuffix(requestedZone, "."+managedZone)
+	}
+
+	if subdomain == "" {
+		return record
+	}
+
+	rr := record.RR()
+
+	// Check if the record name has already been adjusted by seeing if it already ends with the subdomain
+	if strings.HasSuffix(rr.Name, "."+subdomain) {
+		p.getLogger().Debug("Record name already adjusted, skipping",
+			zap.String("name", rr.Name),
+			zap.String("subdomain", subdomain))
+		return record
+	}
+
+	// Adjust the record name to include the subdomain
+	// Example: "_acme-challenge.libdns" -> "_acme-challenge.libdns.test"
+	adjustedName := rr.Name + "." + subdomain
+
+	p.getLogger().Debug("Adjusting record name",
+		zap.String("original_name", rr.Name),
+		zap.String("adjusted_name", adjustedName),
+		zap.String("subdomain", subdomain))
+
+	adjustedRR := &libdns.RR{
+		Type: rr.Type,
+		Name: adjustedName,
+		Data: rr.Data,
+		TTL:  rr.TTL,
+	}
+
+	return adjustedRR
 }
 
 // Interface guards
