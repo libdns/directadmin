@@ -116,3 +116,5 @@ type daResponse struct {
 	Success string `json:"success,omitempty"`
 	Result  string `json:"result,omitempty"`
 }
+
+type daDomainList []string
