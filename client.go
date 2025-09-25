@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -17,11 +16,9 @@ import (
 )
 
 func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Record, error) {
-	callerSkipDepth := 2
-
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
-		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(callerSkipDepth), err)
+		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(), err)
 		return nil, err
 	}
 
@@ -38,7 +35,7 @@ func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Re
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
-		fmt.Printf("[%s] failed to build new request: %v\n", p.caller(callerSkipDepth), err)
+		fmt.Printf("[%s] failed to build new request: %v\n", p.caller(), err)
 		return nil, err
 	}
 
@@ -53,25 +50,25 @@ func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Re
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("[%s] failed to execute request: %v\n", p.caller(callerSkipDepth), err)
+		fmt.Printf("[%s] failed to execute request: %v\n", p.caller(), err)
 		return nil, err
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("[%s] failed to close body: %v\n", p.caller(callerSkipDepth), err)
+			fmt.Printf("[%s] failed to close body: %v\n", p.caller(), err)
 		}
 	}(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("[%s] api response error, status code: %v\n", p.caller(callerSkipDepth), resp.StatusCode)
+		fmt.Printf("[%s] api response error, status code: %v\n", p.caller(), resp.StatusCode)
 		return nil, err
 	}
 
 	var respData daZone
 	err = json.NewDecoder(resp.Body).Decode(&respData)
 	if err != nil {
-		fmt.Printf("[%s] failed to json decode response: %v\n", p.caller(callerSkipDepth), err)
+		fmt.Printf("[%s] failed to json decode response: %v\n", p.caller(), err)
 		return nil, err
 	}
 
@@ -82,7 +79,7 @@ func (p *Provider) getZoneRecords(ctx context.Context, zone string) ([]libdns.Re
 			switch err {
 			case ErrUnsupported:
 				rr := libDnsRecord.RR()
-				fmt.Printf("[%s] unsupported record conversion of type %v: %v\n", p.caller(callerSkipDepth), rr.Type, rr.Name)
+				fmt.Printf("[%s] unsupported record conversion of type %v: %v\n", p.caller(), rr.Type, rr.Name)
 				continue
 			default:
 				return nil, err
@@ -100,7 +97,7 @@ func (p *Provider) appendZoneRecord(ctx context.Context, zone string, record lib
 
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
-		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
+		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(), err)
 		return nil, err
 	}
 
@@ -139,7 +136,7 @@ func (p *Provider) setZoneRecord(ctx context.Context, zone string, record libdns
 
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
-		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
+		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(), err)
 		return nil, err
 	}
 
@@ -194,7 +191,7 @@ func (p *Provider) deleteZoneRecord(ctx context.Context, zone string, record lib
 
 	reqURL, err := url.Parse(p.ServerURL)
 	if err != nil {
-		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(2), err)
+		fmt.Printf("[%s] failed to parse server url: %v\n", p.caller(), err)
 		return nil, err
 	}
 
@@ -221,11 +218,9 @@ func (p *Provider) deleteZoneRecord(ctx context.Context, zone string, record lib
 }
 
 func (p *Provider) executeRequest(ctx context.Context, method, url string) error {
-	callerSkipDepth := 3
-
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
-		fmt.Printf("[%s] failed to build new request: %v\n", p.caller(callerSkipDepth), err)
+		fmt.Printf("[%s] failed to build new request: %v\n", p.caller(), err)
 		return err
 	}
 
@@ -240,33 +235,33 @@ func (p *Provider) executeRequest(ctx context.Context, method, url string) error
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("[%s] failed to execute request: %v\n", p.caller(callerSkipDepth), err)
+		fmt.Printf("[%s] failed to execute request: %v\n", p.caller(), err)
 		return err
 	}
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			fmt.Printf("[%s] failed to close body: %v\n", p.caller(callerSkipDepth), err)
+			fmt.Printf("[%s] failed to close body: %v\n", p.caller(), err)
 		}
 	}(resp.Body)
 
 	var respData daResponse
 	err = json.NewDecoder(resp.Body).Decode(&respData)
 	if err != nil {
-		fmt.Printf("[%s] failed to json decode response: %v\n", p.caller(callerSkipDepth), err)
+		fmt.Printf("[%s] failed to json decode response: %v\n", p.caller(), err)
 		return err
 	}
 
 	if len(respData.Error) > 0 {
 		trimmedResult := strings.Split(respData.Result, "\n")[0]
-		fmt.Printf("[%s] api response error: %v: %v\n", p.caller(callerSkipDepth), respData.Error, trimmedResult)
-		return fmt.Errorf("[%s] api response error: %v: %v\n", p.caller(callerSkipDepth), respData.Error, trimmedResult)
+		fmt.Printf("[%s] api response error: %v: %v\n", p.caller(), respData.Error, trimmedResult)
+		return fmt.Errorf("[%s] api response error: %v: %v\n", p.caller(), respData.Error, trimmedResult)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Printf("[%s] failed to read response body: %v\n", p.caller(callerSkipDepth), err)
+			fmt.Printf("[%s] failed to read response body: %v\n", p.caller(), err)
 			return err
 		}
 		bodyString := string(bodyBytes)
@@ -276,12 +271,4 @@ func (p *Provider) executeRequest(ctx context.Context, method, url string) error
 	}
 
 	return nil
-}
-
-func (p *Provider) caller(skip int) string {
-	pc := make([]uintptr, 15)
-	n := runtime.Callers(skip, pc)
-	frames := runtime.CallersFrames(pc[:n])
-	frame, _ := frames.Next()
-	return frame.Function
 }
