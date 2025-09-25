@@ -5,14 +5,19 @@ package directadmin
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/libdns/libdns"
+	"go.uber.org/zap"
 )
 
 // Provider facilitates DNS record manipulation with DirectAdmin.
 type Provider struct {
+	Logger *zap.Logger `json:"-"`
+	mutex  sync.Mutex
+
 	// ServerURL should be the hostname (with port if necessary) of the DirectAdmin instance
 	// you are trying to use
 	ServerURL string `json:"host,omitempty"`
@@ -41,8 +46,26 @@ type Provider struct {
 	// powerdns.  This will dump your auth token in plain text
 	// so be careful.
 	Debug string `json:"debug,omitempty"`
+}
 
-	mutex sync.Mutex
+// getLogger returns the logger with caller location context, creating a default one if none is set
+func (p *Provider) getLogger() *zap.Logger {
+	baseLogger := p.Logger
+	if baseLogger == nil {
+		baseLogger, _ = zap.NewProduction()
+	}
+	return baseLogger.With(zap.String("location", p.caller()))
+}
+
+func (p *Provider) caller() string {
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(4, pc) // Fixed skip depth: runtime.Callers -> caller -> getLogger -> actual caller
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	// Extract just the filename from the full path
+	parts := strings.Split(frame.File, "/")
+	filename := parts[len(parts)-1]
+	return fmt.Sprintf("%s:%d", filename, frame.Line)
 }
 
 // GetRecords lists all the records in the zone.
